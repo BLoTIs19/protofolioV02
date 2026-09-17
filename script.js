@@ -143,14 +143,20 @@
     return media.find(m => m.type === "image") || media[0] || null;
   }
 
+  // A file dropped this session isn't in the repo yet, so show it from the
+  // in-memory blob URL until it's been committed to assets/media/.
+  function resolveSrc(src) {
+    return (typeof previewUrls !== "undefined" && previewUrls.get(src)) || src;
+  }
+
   function mediaHtml(item) {
     if (item.type === "youtube") {
       return `<div class="embed"><iframe src="https://www.youtube.com/embed/${escapeHtml(item.src)}" title="Video" allowfullscreen loading="lazy"></iframe></div>`;
     }
     if (item.type === "video") {
-      return `<video src="${escapeHtml(item.src)}" controls preload="metadata" playsinline></video>`;
+      return `<video src="${escapeHtml(resolveSrc(item.src))}" controls preload="metadata" playsinline></video>`;
     }
-    return `<img src="${escapeHtml(item.src)}" alt="" loading="lazy">`;
+    return `<img src="${escapeHtml(resolveSrc(item.src))}" alt="" loading="lazy">`;
   }
 
   /* ===================================================================
@@ -184,11 +190,11 @@
     const label = document.createElement("div");
     label.className = "cart-label";
     if (cover && cover.type === "image") {
-      label.innerHTML = `<img src="${escapeHtml(cover.src)}" alt="" loading="lazy">`;
+      label.innerHTML = `<img src="${escapeHtml(resolveSrc(cover.src))}" alt="" loading="lazy">`;
     } else if (cover && cover.type === "youtube") {
       label.innerHTML = `<img src="https://img.youtube.com/vi/${escapeHtml(cover.src)}/hqdefault.jpg" alt="" loading="lazy">`;
     } else if (cover && cover.type === "video") {
-      label.innerHTML = `<video src="${escapeHtml(cover.src)}" muted preload="metadata"></video>`;
+      label.innerHTML = `<video src="${escapeHtml(resolveSrc(cover.src))}" muted preload="metadata"></video>`;
     } else {
       label.innerHTML = `<span class="fallback-glyph">${escapeHtml((project.title || "?").slice(0, 2).toUpperCase())}</span>`;
     }
@@ -322,20 +328,204 @@
      =================================================================== */
   const addForm = $("addForm"), mediaList = $("mediaList");
 
+  /* Files the user dropped that are too big to embed (videos, large GIFs).
+     We keep the File object so we can preview it during this session, and
+     record the path it will live at once committed to the repo. */
+  const pendingFiles = new Map();   // "assets/media/clip.mp4" -> File
+  const previewUrls = new Map();    // path -> blob: URL for this session
+
+  const MEDIA_DIR = "assets/media/";
+  const EMBED_LIMIT = 900 * 1024;   // above this, an image gets compressed
+  const HARD_EMBED_LIMIT = 2.5 * 1024 * 1024; // above this after compression, route to assets/
+
+  function humanSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+    return (bytes / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  function safeName(name) {
+    return name.toLowerCase().replace(/[^a-z0-9.\-]+/g, "-").replace(/-+/g, "-");
+  }
+
+  function uniquePath(name) {
+    let base = MEDIA_DIR + safeName(name);
+    let path = base, n = 2;
+    const taken = p => pendingFiles.has(p) || draftMedia.some(m => m.src === p);
+    while (taken(path)) {
+      const dot = base.lastIndexOf(".");
+      path = dot > -1 ? base.slice(0, dot) + "-" + n + base.slice(dot) : base + "-" + n;
+      n++;
+    }
+    return path;
+  }
+
+  /* Shrink an image with a canvas so it can be embedded without bloating
+     data.js. GIFs are skipped — canvas would flatten the animation. */
+  function compressImage(file) {
+    return new Promise(resolve => {
+      if (file.type === "image/gif") { resolve(null); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1600;
+        let { width: w, height: h } = img;
+        if (w > MAX || h > MAX) {
+          const scale = MAX / Math.max(w, h);
+          w = Math.round(w * scale); h = Math.round(h * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        const hasAlpha = file.type === "image/png";
+        resolve(canvas.toDataURL(hasAlpha ? "image/webp" : "image/jpeg", 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  }
+
+  function readAsDataUrl(file) {
+    return new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function ingestFiles(fileList) {
+    const files = Array.from(fileList || []).filter(f =>
+      f.type.startsWith("image/") || f.type.startsWith("video/"));
+    if (!files.length) { toast("No images or videos in that drop"); return; }
+
+    toast("Processing " + files.length + " file" + (files.length === 1 ? "" : "s") + "...");
+
+    for (const file of files) {
+      const isVideo = file.type.startsWith("video/");
+      let item = null;
+
+      if (!isVideo) {
+        // Try to embed the image directly into data.js.
+        let dataUrl = file.size > EMBED_LIMIT ? await compressImage(file) : null;
+        if (!dataUrl && file.size <= HARD_EMBED_LIMIT) dataUrl = await readAsDataUrl(file);
+        if (dataUrl && dataUrl.length * 0.75 <= HARD_EMBED_LIMIT) {
+          item = { type: "image", src: dataUrl, name: file.name, bytes: Math.round(dataUrl.length * 0.75) };
+        }
+      }
+
+      if (!item) {
+        // Too big to embed, or a video: route it into assets/media/.
+        const path = uniquePath(file.name);
+        pendingFiles.set(path, file);
+        previewUrls.set(path, URL.createObjectURL(file));
+        item = {
+          type: isVideo ? "video" : "image",
+          src: path, name: file.name, bytes: file.size, pending: true
+        };
+      }
+      draftMedia.push(item);
+    }
+    renderMediaList();
+  }
+
+  /* ---------- media list UI ---------- */
   function renderMediaList() {
     mediaList.innerHTML = "";
     draftMedia.forEach((m, i) => {
       const row = document.createElement("div");
       row.className = "media-item";
-      const short = m.src.length > 60 ? m.src.slice(0, 57) + "..." : m.src;
-      row.innerHTML = `<span class="mtype">${m.type}</span><span class="msrc">${escapeHtml(short)}</span>`;
+
+      const displaySrc = previewUrls.get(m.src) || m.src;
+      const thumb = document.createElement("div");
+      thumb.className = "media-thumb";
+      if (m.type === "youtube") {
+        thumb.innerHTML = `<img src="https://img.youtube.com/vi/${escapeHtml(m.src)}/default.jpg" alt="">`;
+      } else if (m.type === "video") {
+        thumb.innerHTML = previewUrls.has(m.src)
+          ? `<video src="${escapeHtml(displaySrc)}" muted preload="metadata"></video>`
+          : "\u25B6";
+      } else {
+        thumb.innerHTML = `<img src="${escapeHtml(displaySrc)}" alt="">`;
+      }
+
+      const info = document.createElement("div");
+      info.className = "media-info";
+      const label = m.name || (m.type === "youtube" ? "YouTube video" : m.src.split("/").pop());
+      const bits = [m.type];
+      if (m.bytes) bits.push(humanSize(m.bytes));
+      if (m.pending) bits.push('<span class="pending">needs upload</span>');
+      else if (m.src.startsWith("data:")) bits.push("embedded");
+      info.innerHTML = `<span class="media-name">${escapeHtml(label)}</span><span class="media-sub">${bits.join(" · ")}</span>`;
+
+      const up = document.createElement("button");
+      up.type = "button"; up.className = "mv-btn"; up.innerHTML = "&uarr;";
+      up.disabled = i === 0;
+      up.addEventListener("click", () => { swapMedia(i, i - 1); });
+
+      const down = document.createElement("button");
+      down.type = "button"; down.className = "mv-btn"; down.innerHTML = "&darr;";
+      down.disabled = i === draftMedia.length - 1;
+      down.addEventListener("click", () => { swapMedia(i, i + 1); });
+
       const del = document.createElement("button");
-      del.type = "button"; del.textContent = "Remove";
-      del.addEventListener("click", () => { draftMedia.splice(i, 1); renderMediaList(); });
-      row.appendChild(del);
+      del.type = "button"; del.className = "del-media"; del.textContent = "Remove";
+      del.addEventListener("click", () => {
+        const removed = draftMedia.splice(i, 1)[0];
+        if (removed && removed.pending && !draftMedia.some(x => x.src === removed.src)) {
+          pendingFiles.delete(removed.src);
+          const u = previewUrls.get(removed.src);
+          if (u) { URL.revokeObjectURL(u); previewUrls.delete(removed.src); }
+        }
+        renderMediaList();
+      });
+
+      row.append(thumb, info, up, down, del);
       mediaList.appendChild(row);
     });
+    renderMeter();
   }
+
+  function swapMedia(a, b) {
+    const t = draftMedia[a]; draftMedia[a] = draftMedia[b]; draftMedia[b] = t;
+    renderMediaList();
+  }
+
+  function renderMeter() {
+    const meter = $("mediaMeter");
+    if (!draftMedia.length) { meter.hidden = true; return; }
+    const embedded = draftMedia.filter(m => String(m.src).startsWith("data:"))
+      .reduce((s, m) => s + (m.bytes || 0), 0);
+    const pendingCount = draftMedia.filter(m => m.pending).length;
+    const parts = [`<strong>${draftMedia.length}</strong> item${draftMedia.length === 1 ? "" : "s"}`];
+    if (embedded) parts.push(`${humanSize(embedded)} embedded in data.js`);
+    if (pendingCount) parts.push(`${pendingCount} file${pendingCount === 1 ? "" : "s"} to upload to <code>assets/media/</code>`);
+    meter.innerHTML = parts.join(" · ");
+    meter.hidden = false;
+    meter.classList.toggle("over", embedded > 4 * 1024 * 1024);
+  }
+
+  /* ---------- dropzone wiring ---------- */
+  const dropzone = $("dropzone"), mediaFile = $("mediaFile");
+
+  dropzone.addEventListener("click", () => mediaFile.click());
+  dropzone.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); mediaFile.click(); }
+  });
+  mediaFile.addEventListener("change", e => { ingestFiles(e.target.files); e.target.value = ""; });
+
+  ["dragenter", "dragover"].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add("dragover"); }));
+  ["dragleave", "drop"].forEach(ev =>
+    dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove("dragover"); }));
+  dropzone.addEventListener("drop", e => {
+    if (e.dataTransfer && e.dataTransfer.files.length) ingestFiles(e.dataTransfer.files);
+  });
+
+  // Stop the browser from navigating away if a file is dropped outside the zone.
+  ["dragover", "drop"].forEach(ev =>
+    window.addEventListener(ev, e => { if (e.target !== dropzone) e.preventDefault(); }));
 
   $("addMediaBtn").addEventListener("click", () => {
     const input = $("mediaInput");
@@ -347,20 +537,6 @@
   });
   $("mediaInput").addEventListener("keydown", e => {
     if (e.key === "Enter") { e.preventDefault(); $("addMediaBtn").click(); }
-  });
-
-  $("mediaFile").addEventListener("change", e => {
-    const files = Array.from(e.target.files || []);
-    files.forEach(file => {
-      if (file.size > 3 * 1024 * 1024) {
-        toast(file.name + " is over 3 MB — skipped");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => { draftMedia.push({ type: "image", src: reader.result }); renderMediaList(); };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = "";
   });
 
   function openProjectForm(project) {
@@ -415,6 +591,24 @@
   /* ===================================================================
      EXPORT  (this is what makes changes visible to other people)
      =================================================================== */
+  // Collect every file across all projects that still needs committing.
+  function allPendingPaths() {
+    const set = new Set();
+    projects.forEach(p => (p.media || []).forEach(m => { if (m.pending) set.add(m.src); }));
+    return Array.from(set);
+  }
+
+  // "pending" is a local editing flag — it shouldn't ship in data.js.
+  function cleanProjects() {
+    return projects.map(p => Object.assign({}, p, {
+      media: (p.media || []).map(m => {
+        const c = Object.assign({}, m);
+        delete c.pending;
+        return c;
+      })
+    }));
+  }
+
   function buildDataFile() {
     return `/* =====================================================================
    SITE DATA — generated from the live editor.
@@ -423,13 +617,43 @@
 
 const SITE = ${JSON.stringify(site, null, 2)};
 
-const PROJECTS = ${JSON.stringify(projects, null, 2)};
+const PROJECTS = ${JSON.stringify(cleanProjects(), null, 2)};
 `;
   }
 
   $("exportBtn").addEventListener("click", () => {
     $("exportOut").value = buildDataFile();
+
+    const pending = allPendingPaths();
+    const box = $("pendingBox");
+    if (pending.length) {
+      box.innerHTML = `<h4>Also upload these ${pending.length} file${pending.length === 1 ? "" : "s"}</h4>
+        <p>Videos and large images aren't embedded in data.js — they'd make it enormous. Create a folder called <code>assets/media/</code> in your repo and upload the original files there, named exactly:</p>
+        <ul>${pending.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ul>
+        <p style="margin-top:10px">Use the <strong>Download files</strong> button below to save them with the right names, then drag them into GitHub.</p>`;
+      box.hidden = false;
+      $("downloadFilesBtn").hidden = false;
+    } else {
+      box.hidden = true;
+      $("downloadFilesBtn").hidden = true;
+    }
     open($("exportOverlay"));
+  });
+
+  // Re-save the dropped files under their repo filenames.
+  $("downloadFilesBtn").addEventListener("click", () => {
+    const entries = Array.from(pendingFiles.entries());
+    if (!entries.length) { toast("No files to download"); return; }
+    entries.forEach(([path, file], i) => {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(file);
+        a.download = path.split("/").pop();
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }, i * 350);
+    });
+    toast("Downloading " + entries.length + " file" + (entries.length === 1 ? "" : "s"));
   });
 
   $("downloadDataBtn").addEventListener("click", () => {

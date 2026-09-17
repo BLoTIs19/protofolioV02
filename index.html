@@ -139,18 +139,26 @@
 
       <fieldset class="media-fieldset">
         <legend>Media — images, GIFs and videos</legend>
-        <p class="hint">Add as many as you like. Paste a URL or a path inside <code>assets/</code>. Supported: .png .jpg .webp .gif .mp4 .webm, or a YouTube link.</p>
+
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Add media files">
+          <div class="dz-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="42" height="42"><path d="M24 32V12m0 0l-8 8m8-8l8 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 30v4a4 4 0 004 4h24a4 4 0 004-4v-4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          </div>
+          <p class="dz-main">Drag &amp; drop images and videos here</p>
+          <p class="dz-sub">or <span class="dz-browse">browse your computer</span> — select as many as you like</p>
+          <input type="file" id="mediaFile" accept="image/*,video/*" multiple hidden>
+        </div>
+
         <div id="mediaList" class="media-list"></div>
-        <div class="media-add-row">
-          <input type="text" id="mediaInput" placeholder="https://youtu.be/... or assets/clip.gif">
-          <button type="button" class="btn-mini" id="addMediaBtn">Add media</button>
-        </div>
-        <div class="media-upload-row">
-          <label class="file-label">Or upload image/GIF from your computer
-            <input type="file" id="mediaFile" accept="image/*" multiple>
-          </label>
-          <p class="hint warn">Uploads get embedded directly into data.js. Keep them small (under ~1 MB each) or the file gets huge and slow. For videos and big art, host on YouTube or commit the file to <code>assets/</code> instead.</p>
-        </div>
+        <div class="media-meter" id="mediaMeter" hidden></div>
+
+        <details class="media-advanced">
+          <summary>Add by link instead (YouTube, or a file already in assets/)</summary>
+          <div class="media-add-row">
+            <input type="text" id="mediaInput" placeholder="https://youtu.be/... or assets/clip.gif">
+            <button type="button" class="btn-mini" id="addMediaBtn">Add</button>
+          </div>
+        </details>
       </fieldset>
 
       <div class="field-row">
@@ -177,8 +185,10 @@
       <li>Click the pencil icon, select all, paste the new contents, and commit.</li>
       <li>Wait about a minute — your live site updates automatically.</li>
     </ol>
+    <div class="pending-box" id="pendingBox" hidden></div>
     <div class="add-actions">
       <button class="btn btn-primary" id="downloadDataBtn">Download data.js</button>
+      <button class="btn btn-ghost" id="downloadFilesBtn" hidden>Download files</button>
       <button class="btn btn-ghost" id="copyDataBtn">Copy code</button>
     </div>
     <textarea id="exportOut" readonly rows="12"></textarea>

@@ -54,14 +54,39 @@ protects your content.
   Paste a URL/path, or upload images straight from your computer.
 - **Discard local changes** — reverts to whatever is published in `data.js`.
 
-## Media tips
+## Adding media
 
-- Screenshots and GIFs: commit to `assets/`, reference as `assets/name.gif`.
-- Videos: YouTube links are best — paste any YouTube URL and it embeds.
-  Self-hosted `.mp4` works too but bloats the repo.
-- Uploaded images get embedded into `data.js` as base64. Convenient, but
-  keep them small — files over 3 MB are rejected, and several large ones
-  will make your site slow to load.
+In the project form there's a drag-and-drop zone. Drop in as many images
+and videos as you want at once, or click it to multi-select from your
+computer. Order them with the arrow buttons; the first image becomes the
+card art.
+
+Two things happen behind the scenes, because images and videos can't be
+treated the same way:
+
+**Images and GIFs** get embedded straight into `data.js`. Large photos are
+automatically resized (max 1600px) and re-encoded first, so a 6 MB
+screenshot becomes a couple hundred KB. Nothing else for you to do — they
+travel with `data.js`.
+
+**Videos** (and any image still too big after compression) are *not*
+embedded — a 30 MB clip would become ~40 MB of text that the browser has to
+parse on every page load, and GitHub rejects files over 100 MB. Instead the
+site records the path `assets/media/<filename>` and flags the file as
+"needs upload". They still play normally while you're editing, using a
+temporary in-browser preview.
+
+When you click **Export site data**, any such files are listed for you with
+their exact filenames, plus a **Download files** button that re-saves them
+ready to commit. So the publish flow becomes:
+
+1. **Download data.js** → paste into `data.js` in your repo.
+2. **Download files** → create `assets/media/` in your repo and upload them
+   there with the listed names.
+3. Commit. Both parts have to land or the videos will show as broken.
+
+If you'd rather skip step 2 for a big trailer, put it on YouTube and paste
+the link under "Add by link instead" — that embeds with no file to manage.
 
 ## Publishing to GitHub Pages
 
