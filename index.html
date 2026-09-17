@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Belal Swilam Portfolio</title>
+<meta name="description" content="Belal Swilam — Unreal Engine Developer & Game Programmer. Gameplay systems, C++ and Blueprints.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+<div class="glow-orb glow-orb-a" aria-hidden="true"></div>
+<div class="glow-orb glow-orb-b" aria-hidden="true"></div>
+
+<div class="admin-bar" id="adminBar" hidden>
+  <span class="admin-dot"></span>
+  <span>Admin mode — click any text to edit it</span>
+  <button class="btn-mini" id="exportBtn">Export site data</button>
+  <button class="btn-mini ghost" id="discardBtn">Discard local changes</button>
+</div>
+
+<header class="topbar">
+  <div class="brand"><span class="brand-mark" data-edit="name">Belal Swilam</span></div>
+  <nav class="topnav">
+    <button class="nav-link" data-scroll="#work">Work</button>
+    <button class="nav-link" data-scroll="#about">About</button>
+    <button class="nav-link" data-scroll="#contact">Contact</button>
+    <button class="nav-link nav-cta" id="authControl">Admin login</button>
+  </nav>
+</header>
+
+<main>
+  <section class="hero reveal" id="home">
+    <div class="hero-copy">
+      <p class="hero-kicker">Portfolio</p>
+      <h1 data-edit="name">Belal Swilam</h1>
+      <p class="hero-role" data-edit="role">Unreal Engine Developer | Game Programmer</p>
+      <p class="hero-sub" data-edit="heroIntro"></p>
+      <div class="hero-actions">
+        <button class="btn btn-primary" data-scroll="#work">See my work</button>
+        <button class="btn btn-ghost" data-scroll="#contact">Get in touch</button>
+      </div>
+    </div>
+
+    <div class="rig" aria-hidden="true">
+      <div class="controller">
+        <svg viewBox="0 0 220 140" xmlns="http://www.w3.org/2000/svg">
+          <path class="pad-body" d="M45 40 C20 40 8 60 8 82 C8 104 20 118 36 118 C48 118 52 104 66 100 L154 100 C168 104 172 118 184 118 C200 118 212 104 212 82 C212 60 200 40 175 40 Z"/>
+          <circle class="stick" cx="72" cy="66" r="15"/>
+          <circle class="stick" cx="148" cy="84" r="15"/>
+          <g class="dpad"><rect x="30" y="80" width="10" height="26" rx="2"/><rect x="21" y="89" width="28" height="10" rx="2"/></g>
+          <g class="face-buttons"><circle cx="190" cy="66" r="6"/><circle cx="176" cy="80" r="6"/><circle cx="190" cy="94" r="6"/><circle cx="204" cy="80" r="6"/></g>
+        </svg>
+      </div>
+      <div class="console-screen">
+        <div class="screen-glow"></div>
+        <pre class="boot-text" id="bootText"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="summary-section reveal" id="summary">
+    <div class="summary-card">
+      <h2 data-edit="summaryTitle">Summary</h2>
+      <p data-edit="summary"></p>
+    </div>
+  </section>
+
+  <section class="shelf-section reveal" id="work">
+    <div class="shelf-head">
+      <h2>Selected work</h2>
+      <div class="filters" id="filters"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="empty-state" id="emptyState" hidden>No projects yet.</p>
+  </section>
+
+  <section class="about reveal" id="about">
+    <h2 data-edit="aboutTitle">About me</h2>
+    <div data-edit="about" data-multiline="true"></div>
+  </section>
+
+  <section class="contact reveal" id="contact">
+    <h2>Get in touch</h2>
+    <div class="contact-links" id="contactLinks"></div>
+  </section>
+</main>
+
+<footer class="footer"><p data-edit="footer"></p></footer>
+
+<button class="fab" id="fabAdd" title="Add a project" aria-label="Add a project"><span aria-hidden="true">+</span></button>
+
+<!-- Detail modal -->
+<div class="modal-overlay" id="detailOverlay" hidden>
+  <div class="modal detail-modal" role="dialog" aria-modal="true">
+    <button class="modal-close" data-close>&times;</button>
+    <div id="detailContent"></div>
+  </div>
+</div>
+
+<!-- Login modal -->
+<div class="modal-overlay" id="loginOverlay" hidden>
+  <div class="modal login-modal" role="dialog" aria-modal="true">
+    <button class="modal-close" data-close>&times;</button>
+    <h3>Admin login</h3>
+    <p class="add-intro">Only the admin can edit the site. Everyone else sees it read-only.</p>
+    <form id="loginForm">
+      <label>Username <input required name="username" autocomplete="username"></label>
+      <label>Password <input required type="password" name="password" autocomplete="current-password"></label>
+      <p class="login-error" id="loginError" hidden>Wrong username or password.</p>
+      <div class="add-actions"><button type="submit" class="btn btn-primary">Log in</button></div>
+    </form>
+  </div>
+</div>
+
+<!-- Add / edit project modal -->
+<div class="modal-overlay" id="addOverlay" hidden>
+  <div class="modal add-modal" role="dialog" aria-modal="true">
+    <button class="modal-close" data-close>&times;</button>
+    <h3 id="addTitle">Add a project</h3>
+    <form id="addForm">
+      <input type="hidden" name="editingId">
+      <div class="field-row">
+        <label>Title <input required name="title" placeholder="Project name"></label>
+        <label>Year <input name="year" placeholder="2026"></label>
+      </div>
+      <label class="field-full">Tagline <input name="tagline" placeholder="One sentence shown on the card."></label>
+      <label class="field-full">Description <textarea name="description" rows="4" placeholder="What it is, what you built, what you're proud of."></textarea></label>
+      <div class="field-row">
+        <label>Engine / tools <input name="engine" placeholder="Unreal Engine 5, C++"></label>
+        <label>Role <input name="role" placeholder="Gameplay Programmer"></label>
+      </div>
+      <label class="field-full">Tags (comma separated) <input name="tags" placeholder="unreal, c++, multiplayer"></label>
+
+      <fieldset class="media-fieldset">
+        <legend>Media — images, GIFs and videos</legend>
+        <p class="hint">Add as many as you like. Paste a URL or a path inside <code>assets/</code>. Supported: .png .jpg .webp .gif .mp4 .webm, or a YouTube link.</p>
+        <div id="mediaList" class="media-list"></div>
+        <div class="media-add-row">
+          <input type="text" id="mediaInput" placeholder="https://youtu.be/... or assets/clip.gif">
+          <button type="button" class="btn-mini" id="addMediaBtn">Add media</button>
+        </div>
+        <div class="media-upload-row">
+          <label class="file-label">Or upload image/GIF from your computer
+            <input type="file" id="mediaFile" accept="image/*" multiple>
+          </label>
+          <p class="hint warn">Uploads get embedded directly into data.js. Keep them small (under ~1 MB each) or the file gets huge and slow. For videos and big art, host on YouTube or commit the file to <code>assets/</code> instead.</p>
+        </div>
+      </fieldset>
+
+      <div class="field-row">
+        <label>Play / demo link <input name="playUrl" placeholder="https://yourname.itch.io/game"></label>
+        <label>Source code link <input name="codeUrl" placeholder="https://github.com/you/game"></label>
+      </div>
+      <div class="add-actions">
+        <button type="submit" class="btn btn-primary" id="addSubmitBtn">Add to portfolio</button>
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Export modal -->
+<div class="modal-overlay" id="exportOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="modal-close" data-close>&times;</button>
+    <h3>Publish your changes</h3>
+    <p class="add-intro">Your edits are currently saved <strong>only in this browser</strong>. To make them visible to everyone who opens your link, replace <code>data.js</code> in your GitHub repo with the file below.</p>
+    <ol class="steps">
+      <li>Click <strong>Download data.js</strong> (or copy the code).</li>
+      <li>Go to your repo on GitHub and open <code>data.js</code>.</li>
+      <li>Click the pencil icon, select all, paste the new contents, and commit.</li>
+      <li>Wait about a minute — your live site updates automatically.</li>
+    </ol>
+    <div class="add-actions">
+      <button class="btn btn-primary" id="downloadDataBtn">Download data.js</button>
+      <button class="btn btn-ghost" id="copyDataBtn">Copy code</button>
+    </div>
+    <textarea id="exportOut" readonly rows="12"></textarea>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="data.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
