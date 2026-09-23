@@ -20,7 +20,14 @@
   let site = Object.assign({}, typeof SITE !== "undefined" ? SITE : {});
   let projects = JSON.parse(JSON.stringify(typeof PROJECTS !== "undefined" ? PROJECTS : []));
   let activeTag = "All";
+  let activeCategory = "game";
   let draftMedia = [];
+
+  const CATEGORIES = [
+    { key: "game", label: "Game Projects" },
+    { key: "art", label: "Technical Art / 3D Art" }
+  ];
+  function categoryOf(p) { return p.category === "art" ? "art" : "game"; }
 
   try {
     const s = localStorage.getItem(SITE_KEY);
@@ -77,22 +84,41 @@
     renderContact();
   }
 
+  const CONTACT_ICONS = {
+    github: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.1 3.29 9.42 7.86 10.96.57.1.78-.25.78-.55v-2.14c-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.68-1.29-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.08-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.64 1.6.24 2.77.12 3.06.74.8 1.18 1.82 1.18 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.07.78 2.16v3.2c0 .31.21.66.79.55A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>',
+    linkedin: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.42v1.56h.05c.48-.9 1.63-1.85 3.36-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29ZM5.34 7.43a2.07 2.07 0 1 1 0-4.13 2.07 2.07 0 0 1 0 4.13ZM7.12 20.45H3.55V9h3.57v11.45Z"/></svg>',
+    itch: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.42 2.5 2 5.9v2.15c0 1.05.9 2.2 2 2.2s2-.98 2-2.2c0 1.22 1 2.2 2 2.2s1.94-.98 2-2.2c.06 1.22 1 2.2 2 2.2s1.94-.98 2-2.2c.06 1.22 1 2.2 2 2.2s2-1.15 2-2.2V5.9L19.58 2.5H4.42Zm.1 2h14.96l1.1 1.55H3.42l1.1-1.55ZM4 11.5c-.63 0-1.24-.16-1.78-.44L2 12v8.15c0 .74.83 1.35 1.85 1.35h16.3c1.02 0 1.85-.6 1.85-1.35V12l-.22-.94a4 4 0 0 1-1.78.44c-.98 0-1.87-.4-2.5-1.05a3.5 3.5 0 0 1-2.5 1.05c-.98 0-1.87-.4-2.5-1.05a3.5 3.5 0 0 1-2.5 1.05c-.98 0-1.87-.4-2.5-1.05A3.48 3.48 0 0 1 4 11.5Zm3.5 2c1.1 0 2 .3 2.85.78-.05 1.9-.2 3.45-.85 4.6-.5-1.1-1.6-1.9-2.9-1.9-1.5 0-2.7 1.03-3 2.4-.4-.2-.6-.5-.6-.78v-4.1c1.1.6 2.4.98 3.5 1Zm9 0c1.1-.03 2.4-.4 3.5-1v4.1c0 .28-.2.58-.6.78-.3-1.37-1.5-2.4-3-2.4-1.3 0-2.4.8-2.9 1.9-.65-1.15-.8-2.7-.85-4.6.85-.48 1.75-.78 2.85-.78Z"/></svg>',
+    email: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="m3 6 9 6.5L21 6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4.5 3.5h4l1.5 5-2.5 2a13 13 0 0 0 6 6l2-2.5 5 1.5v4c0 1-1 2-2.5 2C10 22 2 14 2 6c0-1.5 1-2.5 2.5-2.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  };
+
+  function normalizeHref(kind, raw) {
+    const v = String(raw).trim();
+    if (kind === "email") return v.startsWith("mailto:") ? v : "mailto:" + v;
+    if (kind === "phone") return v.startsWith("tel:") ? v : "tel:" + v.replace(/[^\d+]/g, "");
+    return /^https?:\/\//i.test(v) ? v : "https://" + v;
+  }
+
   function renderContact() {
     const wrap = $("contactLinks");
-    const links = [
-      { label: "Email", value: site.email, href: v => "mailto:" + v },
-      { label: "LinkedIn", value: site.linkedin, href: v => v },
-      { label: "GitHub", value: site.github, href: v => v },
-      { label: "itch.io", value: site.itch, href: v => v }
-    ].filter(l => l.value);
+    const entries = [
+      { kind: "github", label: "GitHub", value: site.github },
+      { kind: "linkedin", label: "LinkedIn", value: site.linkedin },
+      { kind: "itch", label: "itch.io", value: site.itch },
+      { kind: "email", label: "Email", value: site.email },
+      { kind: "phone", label: "Phone", value: site.phone }
+    ].filter(e => e.value);
 
-    if (!links.length) {
-      wrap.innerHTML = '<p class="contact-empty">Add your email and profile links in data.js (or while logged in) to show contact buttons here.</p>';
+    if (!entries.length) {
+      wrap.innerHTML = '<p class="contact-empty">No links yet — ' +
+        (isAdmin() ? 'click "Edit links" above to add some.' : 'check back soon.') + '</p>';
       return;
     }
-    wrap.innerHTML = links.map(l =>
-      `<a class="contact-link" href="${escapeHtml(l.href(l.value))}" target="_blank" rel="noopener">${l.label}</a>`
-    ).join("");
+    wrap.innerHTML = entries.map(e => {
+      const href = normalizeHref(e.kind, e.value);
+      const external = e.kind !== "email" && e.kind !== "phone";
+      return `<a class="contact-link" href="${escapeHtml(href)}" ${external ? 'target="_blank" rel="noopener"' : ""}>${CONTACT_ICONS[e.kind]}<span>${e.label}</span></a>`;
+    }).join("");
   }
 
   function enableEditing(on) {
@@ -162,11 +188,29 @@
   /* ===================================================================
      PROJECT GRID
      =================================================================== */
-  const grid = $("grid"), filtersEl = $("filters"), emptyState = $("emptyState");
+  const grid = $("grid"), filtersEl = $("filters"), emptyState = $("emptyState"), categoryTabsEl = $("categoryTabs");
+
+  function renderCategoryTabs() {
+    categoryTabsEl.innerHTML = "";
+    CATEGORIES.forEach(cat => {
+      const count = projects.filter(p => categoryOf(p) === cat.key).length;
+      const b = document.createElement("button");
+      b.className = "cat-tab" + (cat.key === activeCategory ? " active" : "");
+      b.innerHTML = `${escapeHtml(cat.label)} <span class="cat-count">${count}</span>`;
+      b.addEventListener("click", () => {
+        if (activeCategory === cat.key) return;
+        activeCategory = cat.key;
+        activeTag = "All";
+        renderCategoryTabs(); renderFilters(); renderGrid();
+      });
+      categoryTabsEl.appendChild(b);
+    });
+  }
 
   function renderFilters() {
+    const inCategory = projects.filter(p => categoryOf(p) === activeCategory);
     const set = new Set();
-    projects.forEach(p => (p.tags || []).forEach(t => set.add(t)));
+    inCategory.forEach(p => (p.tags || []).forEach(t => set.add(t)));
     const tags = ["All", ...set];
     if (tags.length <= 1) { filtersEl.innerHTML = ""; return; }
     filtersEl.innerHTML = "";
@@ -186,6 +230,12 @@
     const cover = coverOf(project);
     const mediaCount = (project.media || []).length;
     const videoCount = (project.media || []).filter(m => m.type !== "image").length;
+
+    const catBadge = document.createElement("span");
+    const cat = categoryOf(project);
+    catBadge.className = "cart-category" + (cat === "art" ? " art" : "");
+    catBadge.textContent = cat === "art" ? "Technical Art" : "Game";
+    card.appendChild(catBadge);
 
     const label = document.createElement("div");
     label.className = "cart-label";
@@ -227,7 +277,7 @@
         e.stopPropagation();
         if (confirm(`Delete "${project.title}"? This can't be undone.`)) {
           projects = projects.filter(p => p.id !== project.id);
-          saveDraft(); renderFilters(); renderGrid();
+          saveDraft(); renderCategoryTabs(); renderFilters(); renderGrid();
           toast("Deleted — remember to export");
         }
       });
@@ -237,13 +287,15 @@
   }
 
   function renderGrid() {
-    const visible = activeTag === "All" ? projects : projects.filter(p => (p.tags || []).includes(activeTag));
+    let visible = projects.filter(p => categoryOf(p) === activeCategory);
+    if (activeTag !== "All") visible = visible.filter(p => (p.tags || []).includes(activeTag));
     grid.innerHTML = "";
     visible.forEach(p => grid.appendChild(cardTemplate(p)));
     emptyState.hidden = visible.length !== 0;
+    const catLabel = CATEGORIES.find(c => c.key === activeCategory).label.toLowerCase();
     emptyState.textContent = isAdmin()
-      ? "No projects yet — hit the + button to add your first one."
-      : "Projects coming soon.";
+      ? `No ${catLabel} yet — hit the + button to add one.`
+      : `No ${catLabel} yet — check back soon.`;
     observeReveals();
   }
 
@@ -295,7 +347,9 @@
     authControl.classList.toggle("is-admin", admin);
     adminBar.hidden = !admin;
     $("fabAdd").style.display = admin ? "" : "none";
+    $("editContactsBtn").hidden = !admin;
     enableEditing(admin);
+    renderCategoryTabs();
     renderGrid();
   }
 
@@ -539,6 +593,19 @@
     if (e.key === "Enter") { e.preventDefault(); $("addMediaBtn").click(); }
   });
 
+  const categoryPicker = $("categoryPicker"), categoryField = $("categoryField");
+  categoryPicker.querySelectorAll(".cat-option").forEach(btn => {
+    btn.addEventListener("click", () => {
+      categoryPicker.querySelectorAll(".cat-option").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      categoryField.value = btn.dataset.value;
+    });
+  });
+  function setCategoryPicker(value) {
+    categoryPicker.querySelectorAll(".cat-option").forEach(b => b.classList.toggle("active", b.dataset.value === value));
+    categoryField.value = value;
+  }
+
   function openProjectForm(project) {
     addForm.reset();
     draftMedia = project ? JSON.parse(JSON.stringify(project.media || [])) : [];
@@ -546,6 +613,7 @@
     $("addTitle").textContent = project ? "Edit project" : "Add a project";
     $("addSubmitBtn").textContent = project ? "Save changes" : "Add to portfolio";
     addForm.editingId.value = project ? project.id : "";
+    setCategoryPicker(project ? categoryOf(project) : "game");
     if (project) {
       ["title", "year", "tagline", "description", "engine", "role", "playUrl", "codeUrl"].forEach(k => {
         if (addForm[k]) addForm[k].value = project[k] || "";
@@ -576,6 +644,7 @@
       tagline: (d.get("tagline") || "").trim(),
       description: (d.get("description") || "").trim(),
       tags: (d.get("tags") || "").split(",").map(s => s.trim()).filter(Boolean),
+      category: d.get("category") === "art" ? "art" : "game",
       media: draftMedia.slice(),
       playUrl: (d.get("playUrl") || "").trim(),
       codeUrl: (d.get("codeUrl") || "").trim()
@@ -584,8 +653,32 @@
     const idx = projects.findIndex(p => p.id === editingId);
     if (idx > -1) projects[idx] = project; else projects.unshift(project);
 
-    saveDraft(); renderFilters(); renderGrid(); close(addOverlay);
+    saveDraft(); renderCategoryTabs(); renderFilters(); renderGrid(); close(addOverlay);
     toast(idx > -1 ? "Updated — remember to export" : "Added — remember to export");
+  });
+
+  /* ===================================================================
+     CONTACT LINKS EDITING
+     =================================================================== */
+  const contactOverlay = $("contactOverlay"), contactForm = $("contactForm");
+
+  $("editContactsBtn").addEventListener("click", () => {
+    if (!isAdmin()) return;
+    ["github", "linkedin", "itch", "email", "phone"].forEach(k => {
+      if (contactForm[k]) contactForm[k].value = site[k] || "";
+    });
+    open(contactOverlay);
+  });
+
+  contactForm.addEventListener("submit", e => {
+    e.preventDefault();
+    if (!isAdmin()) { close(contactOverlay); return; }
+    const d = new FormData(contactForm);
+    ["github", "linkedin", "itch", "email", "phone"].forEach(k => { site[k] = (d.get(k) || "").trim(); });
+    saveDraft();
+    renderContact();
+    close(contactOverlay);
+    toast("Saved locally — remember to export");
   });
 
   /* ===================================================================
@@ -718,6 +811,7 @@ const PROJECTS = ${JSON.stringify(cleanProjects(), null, 2)};
      INIT
      =================================================================== */
   renderText();
+  renderCategoryTabs();
   renderFilters();
   refreshAuthUI();
   typeBoot();

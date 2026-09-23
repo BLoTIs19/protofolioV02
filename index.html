@@ -39,6 +39,7 @@
     <div class="hero-copy">
       <p class="hero-kicker">Portfolio</p>
       <h1 data-edit="name">Belal Swilam</h1>
+      <p class="hero-nickname" data-edit="nickname">BLoTIs</p>
       <p class="hero-role" data-edit="role">Unreal Engine Developer | Game Programmer</p>
       <p class="hero-sub" data-edit="heroIntro"></p>
       <div class="hero-actions">
@@ -73,9 +74,10 @@
 
   <section class="shelf-section reveal" id="work">
     <div class="shelf-head">
-      <h2>Selected work</h2>
+      <h2>My Projects</h2>
       <div class="filters" id="filters"></div>
     </div>
+    <div class="category-tabs" id="categoryTabs"></div>
     <div class="grid" id="grid"></div>
     <p class="empty-state" id="emptyState" hidden>No projects yet.</p>
   </section>
@@ -86,7 +88,10 @@
   </section>
 
   <section class="contact reveal" id="contact">
-    <h2>Get in touch</h2>
+    <div class="contact-head">
+      <h2>Get in touch</h2>
+      <button class="btn-mini admin-only" id="editContactsBtn" hidden>Edit links</button>
+    </div>
     <div class="contact-links" id="contactLinks"></div>
   </section>
 </main>
@@ -136,6 +141,15 @@
         <label>Role <input name="role" placeholder="Gameplay Programmer"></label>
       </div>
       <label class="field-full">Tags (comma separated) <input name="tags" placeholder="unreal, c++, multiplayer"></label>
+
+      <div class="field-full">
+        <span>Category</span>
+        <div class="category-picker" id="categoryPicker">
+          <button type="button" class="cat-option active" data-value="game">Game Project</button>
+          <button type="button" class="cat-option" data-value="art">Technical Art / 3D Art</button>
+        </div>
+        <input type="hidden" name="category" id="categoryField" value="game">
+      </div>
 
       <fieldset class="media-fieldset">
         <legend>Media — images, GIFs and videos</legend>
@@ -192,6 +206,23 @@
       <button class="btn btn-ghost" id="copyDataBtn">Copy code</button>
     </div>
     <textarea id="exportOut" readonly rows="12"></textarea>
+  </div>
+</div>
+
+<!-- Edit contact links modal -->
+<div class="modal-overlay" id="contactOverlay" hidden>
+  <div class="modal login-modal" role="dialog" aria-modal="true">
+    <button class="modal-close" data-close>&times;</button>
+    <h3>Contact links</h3>
+    <p class="add-intro">Leave any field blank to hide that button. These are placeholders right now — swap in your real links, then export.</p>
+    <form id="contactForm">
+      <label>GitHub <input name="github" placeholder="https://github.com/yourname"></label>
+      <label>LinkedIn <input name="linkedin" placeholder="https://linkedin.com/in/yourname"></label>
+      <label>itch.io <input name="itch" placeholder="https://yourname.itch.io"></label>
+      <label>Email <input name="email" placeholder="you@example.com"></label>
+      <label>Phone <input name="phone" placeholder="+20 100 000 0000"></label>
+      <div class="add-actions"><button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
   </div>
 </div>
 

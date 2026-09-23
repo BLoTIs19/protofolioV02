@@ -48,11 +48,22 @@ protects your content.
 
 - **Edit any text** — click directly on your name, role, intro, summary,
   about, or footer and type. Dashed orange outlines show what's editable.
-- **Add a project** — the green + button, bottom right.
+- **Add a project** — the green + button, bottom right. Choose **Game
+  Project** or **Technical Art / 3D Art** — that's what sorts it into the
+  right tab under "My Projects".
 - **Edit or delete a project** — buttons appear on each card.
-- **Add media** — images, GIFs, `.mp4`/`.webm` videos, or YouTube links.
-  Paste a URL/path, or upload images straight from your computer.
+- **Add media** — drag and drop, or click to multi-select, images/GIFs/
+  videos from your computer. See "Adding media" below.
+- **Edit contact links** — "Edit links" button next to "Get in touch".
+  Blank a field to hide that button for everyone.
 - **Discard local changes** — reverts to whatever is published in `data.js`.
+
+## Game Projects vs Technical Art
+
+"My Projects" has two tabs, switchable by anyone (including visitors):
+**Game Projects** and **Technical Art / 3D Art**. Every project belongs to
+exactly one, chosen from the form when you add or edit it. Each tab has
+its own tag filters underneath, scoped to whatever's in that tab.
 
 ## Adding media
 
