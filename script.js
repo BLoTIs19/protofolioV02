@@ -13,6 +13,67 @@
   const PROJ_KEY = "bs_projects_draft";
 
   /* ===================================================================
+     DRAFT STORAGE (IndexedDB)
+     ---------------------------------------------------------------------
+     Projects can carry embedded images, and localStorage caps out around
+     5–10 MB per site — easy to blow past with a handful of screenshots,
+     and the old code failed *silently* when that happened: the project
+     stayed visible in memory, but the save never landed, so the next
+     reload (or the next time you opened the export modal after coming
+     back to the page) quietly dropped it. IndexedDB has a far higher
+     quota (hundreds of MB+), so this stores the draft there instead.
+     A tiny wrapper keeps the rest of the file working with plain
+     get/set calls; it falls back to localStorage only if IndexedDB is
+     genuinely unavailable.
+     =================================================================== */
+  const DB_NAME = "bs_portfolio_db", STORE = "kv";
+  let dbPromise = null;
+
+  function openDb() {
+    if (!window.indexedDB) return Promise.resolve(null);
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(resolve => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    });
+    return dbPromise;
+  }
+
+  async function idbGet(key) {
+    const db = await openDb();
+    if (!db) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : undefined; } catch (e) { return undefined; } }
+    return new Promise(resolve => {
+      const tx = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
+      tx.onsuccess = () => resolve(tx.result);
+      tx.onerror = () => resolve(undefined);
+    });
+  }
+
+  async function idbSet(key, value) {
+    const db = await openDb();
+    if (!db) { localStorage.setItem(key, JSON.stringify(value)); return; }
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbDelete(key) {
+    const db = await openDb();
+    if (!db) { localStorage.removeItem(key); return; }
+    return new Promise(resolve => {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  }
+
+  /* ===================================================================
      STATE
      Published content lives in data.js. While logged in, edits are held
      as a local draft until exported back into data.js.
@@ -22,6 +83,7 @@
   let activeTag = "All";
   let activeCategory = "game";
   let draftMedia = [];
+  let draftReady = false; // guards saveDraft() from running before the initial load finishes
 
   const CATEGORIES = [
     { key: "game", label: "Game Projects" },
@@ -29,19 +91,45 @@
   ];
   function categoryOf(p) { return p.category === "art" ? "art" : "game"; }
 
-  try {
-    const s = localStorage.getItem(SITE_KEY);
-    if (s) site = Object.assign(site, JSON.parse(s));
-    const p = localStorage.getItem(PROJ_KEY);
-    if (p) projects = JSON.parse(p);
-  } catch (e) {}
-
-  function saveDraft() {
+  // Loads the draft from IndexedDB. If an older version of this site left
+  // a draft behind in localStorage (from before this fix), that's picked
+  // up once here and migrated in — nothing gets lost in the upgrade.
+  async function loadDraft() {
     try {
-      localStorage.setItem(SITE_KEY, JSON.stringify(site));
-      localStorage.setItem(PROJ_KEY, JSON.stringify(projects));
+      let s = await idbGet(SITE_KEY);
+      let p = await idbGet(PROJ_KEY);
+
+      if (s === undefined && p === undefined) {
+        try {
+          const ls = localStorage.getItem(SITE_KEY);
+          const lp = localStorage.getItem(PROJ_KEY);
+          if (ls) s = JSON.parse(ls);
+          if (lp) p = JSON.parse(lp);
+          if (s || p) {
+            if (s) await idbSet(SITE_KEY, s);
+            if (p) await idbSet(PROJ_KEY, p);
+            localStorage.removeItem(SITE_KEY);
+            localStorage.removeItem(PROJ_KEY);
+          }
+        } catch (e) {}
+      }
+
+      if (s) site = Object.assign(site, s);
+      if (p) projects = p;
     } catch (e) {
-      toast("Couldn't save locally — storage may be full.");
+      console.error("Couldn't load local draft:", e);
+    }
+    draftReady = true;
+  }
+
+  async function saveDraft() {
+    if (!draftReady) return; // never overwrite a draft we haven't finished reading yet
+    try {
+      await idbSet(SITE_KEY, site);
+      await idbSet(PROJ_KEY, projects);
+    } catch (e) {
+      console.error("Save failed:", e);
+      toast("⚠ Couldn't save that change locally — export now so you don't lose it.");
     }
   }
 
@@ -795,8 +883,10 @@ const PROJECTS = ${JSON.stringify(cleanProjects(), null, 2)};
     else { out.select(); document.execCommand("copy"); toast("Copied"); }
   });
 
-  $("discardBtn").addEventListener("click", () => {
+  $("discardBtn").addEventListener("click", async () => {
     if (!confirm("Discard all local changes and reload the published version from data.js?")) return;
+    await idbDelete(SITE_KEY);
+    await idbDelete(PROJ_KEY);
     localStorage.removeItem(SITE_KEY);
     localStorage.removeItem(PROJ_KEY);
     location.reload();
@@ -839,11 +929,16 @@ const PROJECTS = ${JSON.stringify(cleanProjects(), null, 2)};
 
   /* ===================================================================
      INIT
+     Draft loading is async (IndexedDB), so the first render waits for it
+     — otherwise an admin's edits could flash away and reappear.
      =================================================================== */
-  renderText();
-  renderCategoryTabs();
-  renderFilters();
-  refreshAuthUI();
-  typeBoot();
-  observeReveals();
+  (async function init() {
+    await loadDraft();
+    renderText();
+    renderCategoryTabs();
+    renderFilters();
+    refreshAuthUI();
+    typeBoot();
+    observeReveals();
+  })();
 })();

@@ -102,6 +102,27 @@ ready to commit. So the publish flow becomes:
 If you'd rather skip step 2 for a big trailer, put it on YouTube and paste
 the link under "Add by link instead" — that embeds with no file to manage.
 
+## Why a project could silently disappear (fixed)
+
+Earlier versions of this site saved your draft (unpublished edits) to the
+browser's `localStorage`, which only holds about 5–10 MB per site. With a
+few projects' worth of embedded screenshots, that filled up — and the save
+failed *silently*. The project you'd just added stayed on screen (since
+the page still had it in memory), but the save never actually landed, so
+the next time the page reloaded, only whatever had successfully saved
+before the limit was hit came back. That's almost certainly what cost you
+those last two projects.
+
+This is now fixed: the draft is stored in IndexedDB instead, which has a
+much larger quota (hundreds of MB or more, depending on the browser) — and
+your existing draft is migrated into it automatically the first time you
+load the updated site, so nothing extra to do. If a save ever does fail
+(e.g. you're genuinely out of disk space), you'll now get an explicit
+warning telling you to export immediately rather than losing it quietly.
+
+**Re-add the two projects that didn't save** — they weren't exported, so
+they're not recoverable from `data.js`. Sorry about that one.
+
 ## Publishing to GitHub Pages
 
 1. Create a repo and upload these files.
