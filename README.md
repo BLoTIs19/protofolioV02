@@ -51,7 +51,10 @@ protects your content.
 - **Add a project** — the green + button, bottom right. Choose **Game
   Project** or **Technical Art / 3D Art** — that's what sorts it into the
   right tab under "My Projects".
-- **Edit or delete a project** — buttons appear on each card.
+- **Edit, delete, or reorder a project** — buttons appear on each card.
+  The ↑ / ↓ arrows move a card earlier or later within its current tab
+  (Game Projects / Technical Art) and current tag filter — handy for
+  putting your newest or best work first instead of oldest-first.
 - **Add media** — drag and drop, or click to multi-select, images/GIFs/
   videos from your computer. See "Adding media" below.
 - **Edit contact links** — "Edit links" button next to "Get in touch".

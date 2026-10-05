@@ -223,7 +223,19 @@
     });
   }
 
-  function cardTemplate(project) {
+  // Swap two projects' positions in the master array, by id. Works
+  // correctly even when other-category items sit between them.
+  function swapProjectOrder(idA, idB) {
+    const a = projects.findIndex(p => p.id === idA);
+    const b = projects.findIndex(p => p.id === idB);
+    if (a === -1 || b === -1) return;
+    [projects[a], projects[b]] = [projects[b], projects[a]];
+    saveDraft();
+    renderGrid();
+    toast("Reordered — remember to export");
+  }
+
+  function cardTemplate(project, orderIndex, visibleList) {
     const card = document.createElement("div");
     card.className = "cartridge";
 
@@ -271,7 +283,24 @@
     if (isAdmin()) {
       const admin = document.createElement("div");
       admin.className = "card-admin";
-      admin.innerHTML = `<button class="edit-btn">Edit</button><button class="del-btn">Delete</button>`;
+
+      const atStart = orderIndex === 0;
+      const atEnd = orderIndex === visibleList.length - 1;
+      admin.innerHTML = `
+        <div class="order-group">
+          <button class="order-btn up-btn" ${atStart ? "disabled" : ""} title="Move earlier">&uarr;</button>
+          <button class="order-btn down-btn" ${atEnd ? "disabled" : ""} title="Move later">&darr;</button>
+        </div>
+        <div class="manage-group">
+          <button class="edit-btn">Edit</button><button class="del-btn">Delete</button>
+        </div>`;
+
+      if (!atStart) admin.querySelector(".up-btn").addEventListener("click", e => {
+        e.stopPropagation(); swapProjectOrder(project.id, visibleList[orderIndex - 1].id);
+      });
+      if (!atEnd) admin.querySelector(".down-btn").addEventListener("click", e => {
+        e.stopPropagation(); swapProjectOrder(project.id, visibleList[orderIndex + 1].id);
+      });
       admin.querySelector(".edit-btn").addEventListener("click", e => { e.stopPropagation(); openProjectForm(project); });
       admin.querySelector(".del-btn").addEventListener("click", e => {
         e.stopPropagation();
@@ -290,7 +319,7 @@
     let visible = projects.filter(p => categoryOf(p) === activeCategory);
     if (activeTag !== "All") visible = visible.filter(p => (p.tags || []).includes(activeTag));
     grid.innerHTML = "";
-    visible.forEach(p => grid.appendChild(cardTemplate(p)));
+    visible.forEach((p, i) => grid.appendChild(cardTemplate(p, i, visible)));
     emptyState.hidden = visible.length !== 0;
     const catLabel = CATEGORIES.find(c => c.key === activeCategory).label.toLowerCase();
     emptyState.textContent = isAdmin()
@@ -348,6 +377,7 @@
     adminBar.hidden = !admin;
     $("fabAdd").style.display = admin ? "" : "none";
     $("editContactsBtn").hidden = !admin;
+    $("sortHint").hidden = !admin;
     enableEditing(admin);
     renderCategoryTabs();
     renderGrid();
